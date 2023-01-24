@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
@@ -35,32 +36,38 @@ func main() {
 		DB:       cfg.RedisDB,
 	})
 
+	jsonData, err := os.ReadFile(cfg.OutputFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var jsonDataMap map[string]interface{}
+	err = json.Unmarshal(jsonData, &jsonDataMap)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	keys, err := client.Keys(context.Background(), cfg.RedisFilter).Result()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	data := make(map[string]interface{})
+	for key, val := range jsonDataMap {
+		redisVal, _ := client.Get(context.Background(), key).Result()
+		if redisVal != val {
+			fmt.Printf("Different value: %q\n\tRedis = %q\n\tJSON  = %q\n", key, redisVal, val)
+		}
+	}
 
 	for _, key := range keys {
-		log.Printf("loading key %s", key)
-		val, err := client.Get(context.Background(), key).Result()
-		if err != nil {
-			log.Fatal(err)
+		if _, ok := jsonDataMap[key]; !ok {
+			fmt.Printf("Missing key in JSON: %q\n", key)
 		}
-		data[key] = val
 	}
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		log.Fatal(err)
+	for key := range jsonDataMap {
+		if client.Exists(context.Background(), key).Val() == 0 {
+			fmt.Printf("Missing key in Redis: %q\n", key)
+		}
 	}
-
-	file, err := os.Create(cfg.OutputFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	file.Write(jsonData)
 }

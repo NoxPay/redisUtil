@@ -47,7 +47,9 @@ func main() {
 	}
 
 	for key, val := range data {
-		log.Printf("Restoring key %q, value %q", key, val)
+		// TODO: check if key needs to be inserted/updated
+		log.Printf("Restoring key %q\n", key)
+		// TODO: add support to expiration time
 		client.Set(context.Background(), key, val, 0)
 	}
 }
